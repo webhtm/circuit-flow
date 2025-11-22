@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circuit Flow Game</title>
+    <style>
+        :root {
+            --bg-color: #050510;
+            --grid-line: #1a1a2e;
+            --panel-bg: rgba(20, 20, 35, 0.95);
+            --text-color: #e0e0ff;
+            --accent: #00d4ff; /* Neon Blue */
+            --accent-glow: rgba(0, 212, 255, 0.4);
+            --wire-off: #2a2a40;
+            --wire-on: #ffd700; /* Gold */
+            --wire-win: #00ff9d; /* Neon Green */
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                linear-gradient(var(--grid-line) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+            background-size: 40px 40px;
+            color: var(--text-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        /* --- LAYOUT CONTAINER --- */
+        #top-ui {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            width: 95%;
+            max-width: 900px;
+            margin-bottom: 10px;
+            padding: 5px;
+            z-index: 5;
+        }
+
+        .title-group {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        h1 {
+            margin: 0;
+            font-weight: 300;
+            font-size: 1.5rem;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px var(--accent-glow);
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        #score-display {
+            font-size: 0.9rem;
+            color: var(--wire-on);
+            font-weight: bold;
+            margin-top: 2px;
+        }
+
+        .controls {
+            background: var(--panel-bg);
+            padding: 8px 15px;
+            border-radius: 50px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            border: 1px solid #333;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        /* Mobile Layout Adjustments */
+        @media (max-width: 600px) {
+            #top-ui {
+                flex-direction: column;
+                gap: 10px;
+                margin-top: 10px;
+            }
+            
+            .title-group {
+                align-items: center;
+            }
+
+            .controls {
+                width: 90%;
+                justify-content: center;
+            }
+        }
+
+        select, button {
+            background: #161625;
+            color: var(--accent);
+            border: 1px solid var(--wire-off);
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        select:hover, button:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 15px var(--accent-glow);
+            text-shadow: 0 0 5px var(--accent);
+        }
+
+        button {
+            background: var(--accent);
+            color: #000;
+            border: none;
+        }
+        
+        button:hover {
+            background: #fff;
+            transform: translateY(-2px);
+        }
+
+        #game-wrapper {
+            position: relative;
+            padding: 4px;
+            background: #000;
+            border-radius: 12px;
+            border: 2px solid #333;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            max-height: 80vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        canvas {
+            display: block;
+            cursor: crosshair;
+            border-radius: 8px;
+            max-width: 95vw;
+            max-height: 75vh;
+        }
+
+        /* HIDDEN STATUS as requested */
+        #status {
+            display: none;
+        }
+
+        /* --- HELP MODAL (Overlay + Centered Box) --- */
+        #help-modal {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(2px);
+            z-index: 50;
+            display: none; 
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #help-modal.visible {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #333;
+            color: #ffffff;
+            border-left: 6px solid var(--accent);
+            padding: 25px;
+            border-radius: 8px;
+            width: 280px;
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+            text-align: left;
+            animation: popIn 0.2s ease-out;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.9); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .modal-content h2 { 
+            margin-top: 0; 
+            color: #00d9dd; 
+            font-size: 1.2rem;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .modal-content p { 
+            font-size: 0.9rem; 
+            line-height: 1.6; 
+            margin-bottom: 12px;
+            color: #ffffff;
+        }
+
+        .close-btn { 
+            margin-top: 15px; 
+            background: #444; 
+            color: white; 
+            width: 100%; 
+            padding: 10px;
+            font-size: 1rem;
+        }
+.close-btn:hover {
+    color: #444;
+    background: white;
+}
+
+        
+        #win-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7); /* Semi-transparent dim */
+            z-index: 40;
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 8px;
+        }
+
+        #win-overlay.visible {
+            display: flex;
+        }
+
+        .win-msg {
+            color: var(--wire-win);
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-shadow: 0 0 15px var(--wire-win);
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        #next-level-btn {
+            background: var(--wire-win);
+            color: #000;
+            font-size: 1.1rem;
+            padding: 12px 30px;
+            border-radius: 30px;
+            box-shadow: 0 0 20px rgba(0, 255, 157, 0.5);
+            border: 2px solid #fff;
+            animation: pulse 2s infinite;
+        }
+
+        #next-level-btn:hover {
+            transform: scale(1.05);
+            background: #fff;
+            color: #000;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 255, 157, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 255, 157, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 255, 157, 0); }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="top-ui">
+        <div class="title-group">
+            <h1>Circuit Flow</h1>
+            <div id="score-display">SCORE: 0</div>
+        </div>
+        
+        <div class="controls">
+            <select id="difficulty">
+                <option value="3">Level 1 (3x3)</option>
+                <option value="4">Level 2 (4x4)</option>
+                <option value="5" selected>Level 3 (5x5)</option>
+                <option value="6">Level 4 (6x6)</option>
+                <option value="8">Level 5 (8x8)</option>
+                <option value="10">Level 6 (10x10)</option>
+                <option value="12">Level 7 (12x12)</option>
+            </select>
+            <button id="reset-btn">NEW GAME</button>
+            <button id="help-btn" onclick="toggleHelp()" style="background: #333; color: #fff;">?</button>
+        </div>
+    </div>
+
+    <div id="game-wrapper">
+        <canvas id="gameCanvas"></canvas>
+        
+        <!-- Help Modal -->
+        <div id="help-modal">
+            <div class="modal-content">
+                <h2>System Manual</h2>
+                <p><strong>GOAL:</strong><br>Connect Source (⚡) to Terminal (💡).</p>
+                <p><strong>CONTROLS:</strong><br>
+                   • Tap to Rotate<br>
+                   • Swipe to Rotate<br>
+                   • Drag Mouse to Rotate
+                </p>
+                <button class="close-btn" onclick="toggleHelp()">CLOSE</button>
+            </div>
+        </div>
+
+        <!-- Win Overlay -->
+        <div id="win-overlay">
+            <div class="win-msg">System Online</div>
+            <button id="next-level-btn" onclick="initGame(false)">NEXT CIRCUIT</button>
+        </div>
+    </div>
+
+    <div id="status"></div>
+
+<script>
+    // --- CONFIGURATION ---
+    const CANVAS = document.getElementById('gameCanvas');
+    const CTX = CANVAS.getContext('2d');
+    const DIFFICULTY_SELECT = document.getElementById('difficulty');
+    const RESET_BTN = document.getElementById('reset-btn');
+    const STATUS_EL = document.getElementById('status');
+    const SCORE_EL = document.getElementById('score-display');
+    const HELP_MODAL = document.getElementById('help-modal');
+    const WIN_OVERLAY = document.getElementById('win-overlay');
+
+    // Colors
+    const COLORS = {
+        bg: '#0a0a10',
+        wireOff: '#333',
+        wireOn: '#ffcc00',
+        wireWin: '#00ff9d',
+        connector: '#555',
+        grid: '#151520'
+    };
+
+    // Game State
+    let GRID_SIZE = 5;
+    let TILE_SIZE = 60;
+    let grid = [];
+    let isWin = false;
+    let startPos = {x:0, y:0};
+    let endPos = {x:0, y:0};
+    let score = 0;
+    
+    // Input State
+    let touchStart = {x: 0, y: 0};
+    let activeTile = null;
+    let isMouseDown = false;
+
+    // --- TILE LOGIC ---
+    const SHAPES = {
+        'STRAIGHT': [1, 0, 1, 0],
+        'ELBOW':    [1, 1, 0, 0],
+        'TEE':      [1, 1, 1, 0],
+        'CROSS':    [1, 1, 1, 1],
+        'CAP':      [1, 0, 0, 0]
+    };
+
+    class Tile {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.type = 'EMPTY';
+            this.connections = [0,0,0,0];
+            this.rotation = 0;
+            this.isPowered = false;
+            this.isSource = false;
+            this.isSink = false;
+        }
+
+        rotate(dir = 1) {
+            if (dir === 1) {
+                this.connections.unshift(this.connections.pop());
+                this.rotation = (this.rotation + 1) % 4;
+            } else {
+                this.connections.push(this.connections.shift());
+                this.rotation = (this.rotation + 3) % 4;
+            }
+        }
+
+        setShape(typeStr) {
+            this.type = typeStr;
+            this.connections = [...SHAPES[typeStr]];
+        }
+    }
+
+    // --- INITIALIZATION ---
+    function initGame(resetScore = false) {
+        if(resetScore) {
+            score = 0;
+            updateScoreUI();
+        }
+        
+        isWin = false;
+        WIN_OVERLAY.classList.remove('visible'); 
+        
+        STATUS_EL.innerText = "SYSTEM: WAITING FOR INPUT...";
+        STATUS_EL.style.color = "#666";
+        GRID_SIZE = parseInt(DIFFICULTY_SELECT.value);
+        
+        // Canvas Sizing Logic
+        let w = window.innerWidth;
+        let h = window.innerHeight;
+        if (!w || w < 100) w = 500; 
+
+        let maxW = w - 20;
+        let maxH = h - 160; 
+
+        let rawSize = Math.min(600, maxW, maxH);
+        if (rawSize < 200) rawSize = 200; 
+        
+        TILE_SIZE = Math.floor(rawSize / GRID_SIZE);
+        
+        CANVAS.width = GRID_SIZE * TILE_SIZE;
+        CANVAS.height = GRID_SIZE * TILE_SIZE;
+
+        grid = [];
+        for(let y=0; y<GRID_SIZE; y++) {
+            let row = [];
+            for(let x=0; x<GRID_SIZE; x++) {
+                row.push(new Tile(x, y));
+            }
+            grid.push(row);
+        }
+
+        startPos = {x: 0, y: 0};
+        endPos = {x: GRID_SIZE-1, y: GRID_SIZE-1};
+        
+        generateSolvablePath();
+        fillNoise();
+        scramble();
+        
+        checkPower();
+        draw();
+    }
+
+    function updateScoreUI() {
+        SCORE_EL.innerText = `SCORE: ${score}`;
+    }
+
+    function toggleHelp() {
+        HELP_MODAL.classList.toggle('visible');
+    }
+
+    // --- GENERATION ALGORITHM (UPDATED FOR DIFFICULTY) ---
+    function generateSolvablePath() {
+        grid[startPos.y][startPos.x].isSource = true;
+        grid[endPos.y][endPos.x].isSink = true;
+
+        // Track last direction: {x, y, lastDir}
+        // lastDir is 0(N), 1(E), 2(S), 3(W) or -1 (start)
+        let current = { ...startPos, lastDir: -1 };
+        let pathStack = [grid[current.y][current.x]];
+        let visited = new Set([`${current.x},${current.y}`]);
+
+        while(current.x !== endPos.x || current.y !== endPos.y) {
+            let neighbors = [];
+            const dirs = [
+                {dx: 0, dy: -1, dir: 0}, // N
+                {dx: 1, dy: 0,  dir: 1}, // E
+                {dx: 0, dy: 1,  dir: 2}, // S
+                {dx: -1, dy: 0, dir: 3}  // W
+            ];
+
+            dirs.forEach(d => {
+                let nx = current.x + d.dx;
+                let ny = current.y + d.dy;
+                if(nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+                    if(!visited.has(`${nx},${ny}`)) {
+                        neighbors.push({x: nx, y: ny, dir: d.dir});
+                    }
+                }
+            });
+
+            if(neighbors.length === 0) {
+                return generateSolvablePath(); 
+            }
+
+            // --- NEW SORTING LOGIC FOR ELBOWS ---
+            neighbors.sort((a,b) => {
+                // Distance Heuristic (Manhattan)
+                let distA = Math.abs(a.x - endPos.x) + Math.abs(a.y - endPos.y);
+                let distB = Math.abs(b.x - endPos.x) + Math.abs(b.y - endPos.y);
+                
+                let scoreA = distA;
+                let scoreB = distB;
+
+                // DIFFICULTY CHECK: If grid is large, penalize straight lines
+                if(GRID_SIZE >= 5 && current.lastDir !== -1) {
+                    // If direction is same as previous, add penalty (makes it prefer turns)
+                    if(a.dir === current.lastDir) scoreA += 3; 
+                    if(b.dir === current.lastDir) scoreB += 3;
+                }
+
+                // If scores are close, randomness decides, otherwise follow heuristic
+                // Higher difficulty = more randomness / less optimal pathing
+                let randomness = (GRID_SIZE >= 8) ? 0.6 : 0.3;
+
+                if(Math.random() > (1 - randomness)) {
+                    // Pure random choice sometimes to force winding
+                    return Math.random() - 0.5;
+                }
+                
+                return scoreA - scoreB;
+            });
+
+            let next = neighbors[0];
+            
+            grid[current.y][current.x].connections[next.dir] = 1;
+            grid[next.y][next.x].connections[(next.dir + 2) % 4] = 1;
+
+            // Update current with new position AND direction we just moved
+            current = {x: next.x, y: next.y, lastDir: next.dir};
+            visited.add(`${current.x},${current.y}`);
+            pathStack.push(grid[current.y][current.x]);
+        }
+
+        pathStack.forEach(t => resolveTileShape(t));
+        resolveTileShape(grid[startPos.y][startPos.x]);
+    }
+
+    function resolveTileShape(tile) {
+        let c = tile.connections;
+        let sum = c.reduce((a,b)=>a+b,0);
+        
+        if(sum === 2) {
+            if((c[0] && c[2]) || (c[1] && c[3])) tile.setShape('STRAIGHT');
+            else tile.setShape('ELBOW');
+        } else if (sum === 3) tile.setShape('TEE');
+        else if (sum === 4) tile.setShape('CROSS');
+        else if (sum === 1) tile.setShape('CAP');
+        else tile.setShape('STRAIGHT');
+
+        let target = [...c];
+        tile.connections = [...SHAPES[tile.type]];
+        tile.rotation = 0;
+        
+        let safe = 0;
+        while(!arraysEqual(tile.connections, target) && safe < 4) {
+            tile.rotate();
+            safe++;
+        }
+    }
+
+    function fillNoise() {
+        // --- WEIGHTED RANDOMNESS ---
+        let keys = [];
+        
+        if (GRID_SIZE <= 5) {
+            // Balanced for easy levels
+            keys = ['STRAIGHT', 'ELBOW', 'TEE', 'CROSS', 'CAP'];
+        } else {
+            // Hard levels: Skew heavily towards Elbows and Tees
+            // This makes visual tracing much harder than straight lines
+            keys = [
+                'ELBOW', 'ELBOW', 'ELBOW', 
+                'TEE', 'TEE', 
+                'CROSS', 
+                'CAP', 
+                'STRAIGHT' // Only 1 chance for straight
+            ];
+        }
+
+        for(let y=0; y<GRID_SIZE; y++) {
+            for(let x=0; x<GRID_SIZE; x++) {
+                let t = grid[y][x];
+                if(t.type === 'EMPTY') {
+                    t.setShape(keys[Math.floor(Math.random() * keys.length)]);
+                }
+            }
+        }
+    }
+
+    function scramble() {
+        for(let row of grid) {
+            for(let t of row) {
+                let r = Math.floor(Math.random() * 4);
+                for(let i=0; i<r; i++) t.rotate();
+            }
+        }
+    }
+
+    // --- POWER LOGIC ---
+    function checkPower() {
+        let poweredSink = false;
+        for(let r of grid) r.forEach(t => t.isPowered = false);
+
+        let queue = [grid[startPos.y][startPos.x]];
+        grid[startPos.y][startPos.x].isPowered = true;
+
+        while(queue.length) {
+            let curr = queue.pop();
+            if(curr.isSink) poweredSink = true;
+
+            const steps = [
+                {dx: 0, dy: -1, bit: 0, opp: 2}, // N
+                {dx: 1, dy: 0,  bit: 1, opp: 3}, // E
+                {dx: 0, dy: 1,  bit: 2, opp: 0}, // S
+                {dx: -1, dy: 0, bit: 3, opp: 1}  // W
+            ];
+
+            steps.forEach(s => {
+                if(curr.connections[s.bit]) {
+                    let nx = curr.x + s.dx;
+                    let ny = curr.y + s.dy;
+                    if(nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+                        let neighbor = grid[ny][nx];
+                        if(neighbor.connections[s.opp] && !neighbor.isPowered) {
+                            neighbor.isPowered = true;
+                            queue.push(neighbor);
+                        }
+                    }
+                }
+            });
+        }
+
+        if(poweredSink) {
+            if(!isWin) {
+                isWin = true; 
+                score += 100;
+                updateScoreUI();
+                setTimeout(() => {
+                    WIN_OVERLAY.classList.add('visible');
+                }, 300); 
+                draw(); 
+            }
+        }
+    }
+
+    // --- RENDERING ---
+    function draw() {
+        CTX.fillStyle = COLORS.bg;
+        CTX.fillRect(0, 0, CANVAS.width, CANVAS.height);
+
+        for(let y=0; y<GRID_SIZE; y++) {
+            for(let x=0; x<GRID_SIZE; x++) {
+                drawTile(grid[y][x], x, y);
+            }
+        }
+
+        CTX.strokeStyle = '#222';
+        CTX.lineWidth = 0.5;
+        CTX.beginPath();
+        for(let i=0; i<=GRID_SIZE; i++) {
+            CTX.moveTo(i*TILE_SIZE, 0);
+            CTX.lineTo(i*TILE_SIZE, CANVAS.height);
+            CTX.moveTo(0, i*TILE_SIZE);
+            CTX.lineTo(CANVAS.width, i*TILE_SIZE);
+        }
+        CTX.stroke();
+    }
+
+    function drawTile(tile, gx, gy) {
+        const cx = gx * TILE_SIZE + TILE_SIZE/2;
+        const cy = gy * TILE_SIZE + TILE_SIZE/2;
+        const r = TILE_SIZE / 2;
+
+        CTX.save();
+        CTX.translate(cx, cy);
+        
+        CTX.rotate(tile.rotation * 90 * Math.PI / 180);
+
+        let color = COLORS.wireOff;
+        if (tile.isPowered) color = isWin ? COLORS.wireWin : COLORS.wireOn;
+        
+        if (tile.isPowered) {
+            CTX.shadowBlur = 20;
+            CTX.shadowColor = color;
+        }
+
+        CTX.strokeStyle = color;
+        CTX.lineWidth = TILE_SIZE * 0.12; 
+        CTX.lineCap = 'round';
+        CTX.lineJoin = 'round';
+
+        CTX.beginPath();
+        if (tile.type === 'STRAIGHT') {
+            CTX.moveTo(0, -r); CTX.lineTo(0, r);
+        } 
+        else if (tile.type === 'ELBOW') {
+            CTX.moveTo(0, -r); CTX.lineTo(0, 0); CTX.lineTo(r, 0);
+        }
+        else if (tile.type === 'TEE') {
+            CTX.moveTo(0, -r); CTX.lineTo(0, r);
+            CTX.moveTo(0, 0);  CTX.lineTo(r, 0);
+        }
+        else if (tile.type === 'CROSS') {
+            CTX.moveTo(0, -r); CTX.lineTo(0, r);
+            CTX.moveTo(-r, 0); CTX.lineTo(r, 0);
+        }
+        else if (tile.type === 'CAP') {
+            CTX.moveTo(0, -r); CTX.lineTo(0, 0);
+            CTX.moveTo(0,0); CTX.arc(0,0, TILE_SIZE*0.15, 0, Math.PI*2);
+        }
+        CTX.stroke();
+
+        CTX.fillStyle = tile.isPowered ? color : COLORS.connector;
+        CTX.shadowBlur = 0;
+        
+        const baseConns = SHAPES[tile.type]; 
+        const dotSize = TILE_SIZE * 0.06;
+        const dotDist = r - 2;
+
+        if(baseConns[0]) { CTX.beginPath(); CTX.arc(0, -dotDist, dotSize, 0, Math.PI*2); CTX.fill(); }
+        if(baseConns[1]) { CTX.beginPath(); CTX.arc(dotDist, 0, dotSize, 0, Math.PI*2); CTX.fill(); }
+        if(baseConns[2]) { CTX.beginPath(); CTX.arc(0, dotDist, dotSize, 0, Math.PI*2); CTX.fill(); }
+        if(baseConns[3]) { CTX.beginPath(); CTX.arc(-dotDist, 0, dotSize, 0, Math.PI*2); CTX.fill(); }
+
+        CTX.restore();
+
+        if(tile.isSource) drawIcon('⚡', cx, cy, '#ffeb3b'); 
+        if(tile.isSink)   drawIcon('💡', cx, cy, '#fff');    
+    }
+
+    function drawIcon(char, x, y, color) {
+        CTX.shadowBlur = 15;
+        CTX.shadowColor = color;
+        CTX.fillStyle = color;
+        CTX.font = `bold ${TILE_SIZE*0.6}px Arial`;
+        CTX.textAlign = 'center';
+        CTX.textBaseline = 'middle';
+        CTX.fillText(char, x, y);
+        CTX.shadowBlur = 0; 
+    }
+
+    // --- INPUT HANDLING ---
+    
+    function handleInputStart(clientX, clientY) {
+        if(isWin) return;
+
+        const rect = CANVAS.getBoundingClientRect();
+        touchStart.x = clientX;
+        touchStart.y = clientY;
+
+        const scaleX = CANVAS.width / rect.width;
+        const scaleY = CANVAS.height / rect.height;
+        const gx = Math.floor(((clientX - rect.left) * scaleX) / TILE_SIZE);
+        const gy = Math.floor(((clientY - rect.top) * scaleY) / TILE_SIZE);
+
+        if(gx >= 0 && gx < GRID_SIZE && gy >= 0 && gy < GRID_SIZE) {
+            activeTile = {x: gx, y: gy};
+        } else {
+            activeTile = null;
+        }
+    }
+
+    function handleInputEnd(clientX, clientY) {
+        if(isWin || !activeTile) return; 
+
+        const diffX = clientX - touchStart.x;
+        const diffY = clientY - touchStart.y;
+        const absX = Math.abs(diffX);
+        const absY = Math.abs(diffY);
+
+        const SWIPE_THRESHOLD = 10; 
+
+        let rotated = false;
+
+        if (absX < SWIPE_THRESHOLD && absY < SWIPE_THRESHOLD) {
+            grid[activeTile.y][activeTile.x].rotate(1);
+            rotated = true;
+        } else if (absX > absY) {
+            if (diffX > 0) grid[activeTile.y][activeTile.x].rotate(1);
+            else grid[activeTile.y][activeTile.x].rotate(-1);
+            rotated = true;
+        }
+        
+        if(rotated) {
+            checkPower();
+            draw();
+        }
+        activeTile = null;
+    }
+
+    CANVAS.addEventListener('touchstart', (e) => {
+        if(isWin) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        handleInputStart(touch.clientX, touch.clientY);
+    }, {passive: false});
+
+    CANVAS.addEventListener('touchend', (e) => {
+        if(isWin) return;
+        e.preventDefault();
+        const touch = e.changedTouches[0];
+        handleInputEnd(touch.clientX, touch.clientY);
+    }, {passive: false});
+
+    CANVAS.addEventListener('mousedown', (e) => {
+        if(isWin) return;
+        isMouseDown = true;
+        handleInputStart(e.clientX, e.clientY);
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        e.preventDefault();
+    });
+
+    window.addEventListener('mouseup', (e) => {
+        if(isMouseDown) {
+            handleInputEnd(e.clientX, e.clientY);
+            isMouseDown = false;
+        }
+    });
+
+    RESET_BTN.addEventListener('click', () => initGame(false));
+
+    function arraysEqual(a, b) {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+        return true;
+    }
+
+    initGame(true);
+
+</script>
+</body>
+</html>
